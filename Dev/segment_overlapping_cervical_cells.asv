@@ -65,7 +65,7 @@ for label = 1:num_labels
 %     plot(props(255).Centroid(1), props(255).Centroid(2), 'X', 'MarkerEdgeColor', 'r') % used for visualization...
 end
 
-% Key: superpixel label. Value: list of local window candidates
+% Key: superpixel label. Value: list of local window
 window_dictionary = containers.Map('KeyType','double','ValueType', 'any');
 
 % compare every superpixel with every other superpixel, and if centroids
@@ -82,38 +82,31 @@ for label = 1 : num_labels
     window_dictionary(label) = superpixel_local_window;
 end
 
-% Key: superpixel label. Value: local window
-local_windows_dictionary = containers.Map('KeyType','double','ValueType', 'any');
-
-% for each superpixel label, calculate its local window
-for label = 1 : num_labels
-    local_window_concat = [];
-    n = window_dictionary(label);
-    for j = 1 : size(n, 2)
+% Key: superpixel label. Value: list of local window
+local_windows = containers.Map('KeyType','double','ValueType', 'any');
+for i = 1 : num_labels
+    concat_list = [];
+    n = window_dictionary(i);
+    for j = 1 : size(n,2)
         val = idx{n(j)};
-        local_window_concat = vertcat(local_window_concat, val);
+        concat_list = vertcat(concat_list, val);
     end
-    local_windows_dictionary(label) = local_window_concat; 
+    local_windows(i) = concat_list; 
 end
 
-% paper paramater
 p = 2;
 q = 10;
 k = 0.25;
 s = 1;
-
-count = 0;
-D = zeros(size(preprocessed_image));
-
-for label = 1 : num_labels
-    mew = mean(preprocessed_image(local_windows_dictionary(label)));
-    sigma = std(double(preprocessed_image(local_windows_dictionary(label))));
+count = 1;
+D = zeros(size(preprocessed_image),'like',preprocessed_image);
+for i = 1 : num_labels
+    mew = mean(preprocessed_image(local_windows(i)));
+    sigma = std(double(preprocessed_image(local_windows(i))));
     T = mew * ( 1 + (p^(-q*mew)) + k *((sigma/s) - 1));
-    
     if mean(preprocessed_image(idx{label})) < T
+        sprintf('Nucleus Candidate! - %d', count)
         count = count + 1;
-    end 
+    end
 end
-
-sprintf('Nucleus Candidates... %d/%d', count, num_labels)
 
