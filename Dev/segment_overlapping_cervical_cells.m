@@ -15,16 +15,19 @@ training_image_path = 'synth.tif';
 
 %% Image Preprocessing
 image = imread(training_image_path);
+figure, imshow(image);
 % apply 2D median filter across image
 preprocessed_image = medfilt2(image);
+% preprocessed_image = imgaussfilt(preprocessed_image);
+
 
 %% Cell Mass Detection
 % generate superpixels
-[label_matrix, num_labels] = superpixels(preprocessed_image, size(preprocessed_image,1));
+[label_matrix, num_labels] = superpixels(preprocessed_image, size(preprocessed_image,1)*2);
 region_boundaries = boundarymask(label_matrix);
 
 % show the superpixel overlay
-imshow(imoverlay(preprocessed_image, region_boundaries, 'K'),'InitialMagnification', 100)
+% figure, imshow(imoverlay(preprocessed_image, region_boundaries, 'K'),'InitialMagnification', 100)
 
 % mean of superpixels initialization
 mean_superpixels = zeros(size(preprocessed_image),'like',preprocessed_image);
@@ -38,7 +41,7 @@ for label = 1:num_labels
     mean_superpixels(val) = mean(preprocessed_image(val));
 end
 
-imshow(imoverlay(mean_superpixels, region_boundaries, 'K'),'InitialMagnification', 100)
+figure, imshow(imoverlay(mean_superpixels, region_boundaries, 'K'),'InitialMagnification', 100)
 
 % image histogram
 img_hist = imhist(mean_superpixels);
@@ -49,8 +52,9 @@ triangle_theshold_image = triangle_th(img_hist, 256);
 % ROI
 binarized_image = ~imbinarize(mean_superpixels, triangle_theshold_image);
 binarized_image = double(binarized_image);
-
+figure, imshow(binarized_image);
 cell_mass = label_matrix .* binarized_image;
+
 roi = unique(cell_mass);
 roi = roi(2:end); % remove unique '0'
 num_rois = size(roi,1);
@@ -115,18 +119,47 @@ s = 255;
 count = 0;
 D = zeros(size(mean_superpixels));
 
-nucli = [];
+% find nuclei candidates
+nuclei_candidates = [];
+nuclei_candidates_idx = [];
 for label = 1 : num_rois
     mew = mean(mean_superpixels(local_windows_dictionary(label)));
     sigma = std(double(mean_superpixels(local_windows_dictionary(label))));
     T = mew * (1 + p*exp(-q*mew) + k *((sigma/s) - 1));
     
     if mean(mean_superpixels(idx{roi(label)})) < T
-        nucli = vertcat(nucli, idx{roi(label)});
+        nuclei_candidates = vertcat(nuclei_candidates, idx{roi(label)});
+        nuclei_candidates_idx = [nuclei_candidates_idx, roi(label)];
         count = count + 1;
     end 
 end
 
-display_superpixel_clusters(image, nucli);h
+%% Nucleus Fine Tuning
+% 1 break superpixels - Not complete
+nc = display_superpixel_clusters(image, nuclei_candidates);
+ncl = logical(nc);
+cc = bwconncomp(ncl);
+rp = regionprops(ncl);
 
-toc
+% 2 reject tiny superpixels - Not complete
+for i = 1 : numel(rp)
+    candidate_nuclei_area = rp(i).Area;
+    if candidate_nuclei_area < 30
+        % disregard it
+    end
+end
+
+% 3 reject low circularity - Not complete
+perm = regionprops(cc, 'perimeter');
+for i = 1 : numel(rp)
+    A = rp(i).Area;
+    P = perm(i);
+    circularity = (4*pi*A)/(P.Perimeter^2);
+    if circularity < 0.5
+        % disregard it
+    end
+end
+
+%% Cytoplasm Segmentation
+
+
