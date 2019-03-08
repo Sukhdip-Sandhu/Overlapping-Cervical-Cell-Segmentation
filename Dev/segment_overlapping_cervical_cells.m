@@ -127,6 +127,6 @@ for label = 1 : num_rois
     end 
 end
 
-display_superpixel_clusters(image, nucli);
+display_superpixel_clusters(image, nucli);h
 
 toc
