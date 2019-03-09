@@ -11,22 +11,19 @@ addpath('EvalCode', 'HelperFunctions', 'Scripts', 'Dataset/Training/Train45Test9
 
 
 %% Hardcoded Variables
-training_image_path = '10.tif';
+training_image_path = 'synth_partition.tif';
 
 %% Image Preprocessing
 image = imread(training_image_path);
-[w,h] = size(image);
-image = image(2:w-1, 2:h-1);
 figure, imshow(image);
 % apply 2D median filter across image
 preprocessed_image = medfilt2(image);
 % preprocessed_image = imgaussfilt(preprocessed_image);
-% preprocessed_image = imsharpen(preprocessed_image);
 
 
 %% Cell Mass Detection
 % generate superpixels
-[label_matrix, num_labels] = superpixels(preprocessed_image, size(preprocessed_image,1)*2);
+[label_matrix, num_labels] = superpixels(preprocessed_image, size(preprocessed_image,1)*1);
 region_boundaries = boundarymask(label_matrix);
 
 % show the superpixel overlay
@@ -55,9 +52,7 @@ triangle_theshold_image = triangle_th(img_hist, 256);
 % ROI
 binarized_image = ~imbinarize(mean_superpixels, triangle_theshold_image);
 binarized_image = double(binarized_image);
-figure, imshow(binarized_image);
-binarized_image = bwareaopen(binarized_image,175); 
-figure, imshow(binarized_image);
+% figure, imshow(binarized_image);
 cell_mass = label_matrix .* binarized_image;
 
 roi = unique(cell_mass);
@@ -234,19 +229,9 @@ nearest_nucleus_dictionary = containers.Map('KeyType','double', 'ValueType', 'an
 for i = 1 : num_rois
     superpixel = roi(i);
     nn = nearest_nucleus(idx, superpixel, rp, size(image));
-    try
-        nearest_nucleus_dictionary(nn) = [nearest_nucleus_dictionary(nn), superpixel];
-    catch
-        nearest_nucleus_dictionary(nn) = superpixel;
-    end
+    if nearest_nucleus_dictionary.keys
+    nearest_nucleus_dictionary(nn) = [nearest_nucleus_dictionary(nn), superpixel];
 end
-
-for i = 1 : cc.NumObjects
-    nc = display_superpixel_clusters_from_list(image, idx, nearest_nucleus_dictionary(i));
-    figure, imshow(nc);
-end
-
-
 %% Cellwise Contour Refinement
 %% END
 toc
