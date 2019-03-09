@@ -243,7 +243,9 @@ end
 
 for i = 1 : cc.NumObjects
     nc = display_superpixel_clusters_from_list(image, idx, nearest_nucleus_dictionary(i));
-    figure, imshow(nc);
+%     figure, imshow(nc);
+    bw = edge(nc);
+    figure, imshow(imoverlay(image, bw, 'r'))
 end
 
 
