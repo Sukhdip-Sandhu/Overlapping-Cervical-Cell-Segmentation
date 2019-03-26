@@ -11,13 +11,14 @@ addpath('EvalCode', 'HelperFunctions', 'Scripts', 'Dataset/Training/Train45Test9
 
 
 %% Hardcoded Variables
-training_image_path = '10.tif';
+training_image_path = '2.tif';
 
 %% Image Preprocessing
 image = imread(training_image_path);
 [w,h] = size(image);
 image = image(2:w-1, 2:h-1);
-figure, imshow(image);
+% figure, imshow(image);
+% save_img(image, '1.original_image')
 % apply 2D median filter across image
 preprocessed_image = medfilt2(image);
 % preprocessed_image = imgaussfilt(preprocessed_image);
@@ -44,8 +45,9 @@ for label = 1:num_labels
     mean_superpixels(val) = mean(preprocessed_image(val));
 end
 
-figure, imshow(imoverlay(mean_superpixels, region_boundaries, 'K'),'InitialMagnification', 100)
-
+% figure, imshow(imoverlay(mean_superpixels, region_boundaries, 'K'),'InitialMagnification', 100)
+% save_img(imoverlay(mean_superpixels, region_boundaries, 'K'), '3.region_boundaries')
+% save_img(mean_superpixels, '4.mean_superpixels')
 % image histogram
 img_hist = imhist(mean_superpixels);
 
@@ -55,9 +57,10 @@ triangle_theshold_image = triangle_th(img_hist, 256);
 % ROI
 binarized_image = ~imbinarize(mean_superpixels, triangle_theshold_image);
 binarized_image = double(binarized_image);
-figure, imshow(binarized_image);
+% figure, imshow(binarized_image);
 binarized_image = bwareaopen(binarized_image,175); 
-figure, imshow(binarized_image);
+% save_img(imoverlay(mean_superpixels, edge(binarized_image), 'r'), '5.cell_mass');
+% figure, imshow(binarized_image);
 cell_mass = label_matrix .* binarized_image;
 
 roi = unique(cell_mass);
@@ -70,7 +73,7 @@ d = 0.1 * size(preprocessed_image,1);
 % d = 7;
 % Key: superpixel label. Value: X,Y coordinate of superpixel centroid
 superpixel_centroid_dictionary = containers.Map('KeyType','double', 'ValueType', 'any');
-hold on
+% hold on
 % For each label, find its centroid (X,Y) and store into dictionary
 for label = 1:num_rois
     tmp = zeros(size(preprocessed_image));
@@ -181,7 +184,7 @@ for i = 1 : numel(nuclei_candidates_idx_new)
     end
 end
 
-%% 2 Reject Low Circularity
+%% 3 Reject Low Circularity
 nc = display_superpixel_clusters_from_list(image, idx, nuclei_candidates_idx_new);
 ncl = logical(nc);
 cc = bwconncomp(ncl);
@@ -192,7 +195,7 @@ P = regionprops(cc, 'perimeter');
 indices_to_remove = [];
 for i = 1 : numel(A)
     circularity = (4*pi*A(i).Area)/(P(i).Perimeter^2);
-    if circularity < 0.5
+    if circularity < 0.75
         for j = 1 : size(nuclei_candidates_idx_new, 2)
             nuclei_roi = idx(nuclei_candidates_idx_new(j));
             nuclei_roi = nuclei_roi{1};
@@ -209,8 +212,8 @@ end
 
 nuclei = nuclei_candidates_idx_new;
 nc = display_superpixel_clusters_from_list(image, idx, nuclei);
-figure, imshow(nc);
-
+% figure, imshow(nc);
+% save_img(nc, '6.nucleus_extraction')
 %% Nucleus_Superpixels (Map To) Region
 ncl = logical(nc);
 cc = bwconncomp(ncl);
@@ -245,9 +248,16 @@ for i = 1 : cc.NumObjects
     nc = display_superpixel_clusters_from_list(image, idx, nearest_nucleus_dictionary(i));
 %     figure, imshow(nc);
     bw = edge(nc);
-    figure, imshow(imoverlay(image, bw, 'r'))
+    edge_color = edge_LUT(i);
+    if i == 1
+        segmentation_overlay = imoverlay(image, bw, edge_color);
+    else
+        segmentation_overlay = imoverlay(segmentation_overlay, bw, edge_color);
+    end
 end
 
+figure, imshow(segmentation_overlay)
+% save_img(segmentation_overlay, '7.segmentation_overlay')
 
 %% Cellwise Contour Refinement
 %% END
