@@ -3,7 +3,7 @@ tic; clear; close all; clc;
 addpath('EvalCode', 'HelperFunctions', 'Dataset/Training/Train45Test90/IndividualImages/')
 
 %% MAIN
-image_path = '5.tif';
+image_path = '9.tif';
 [image, h, w] = read_image(image_path);
 
 %% CELL MASS DETECTION
@@ -19,8 +19,13 @@ superpixel_area_LUT = label_to_area_dictionary(cell_mass, roi, num_roi);
 [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, reject_tiny_candidates, new_nuclei_candidates, idx);
 
 %% CYTOPLASM SEGMENTATION
-superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi, idx, image)
-toc
+initial_segmentation = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi);
+initial_boundaries = draw_boundary_initial(superpixel_area_LUT, initial_segmentation, image);
+figure, imshow(initial_boundaries);
+cellwise_contour_segmentation = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, cell_mass, image, label_matrix, mean_superpixels);
+cellwise_contour_boundaries = draw_boundary_refinement(cellwise_contour_segmentation, image);
+figure, imshow(cellwise_contour_boundaries);
+
 %% Functions
 %% Return Image from Path
 function [image, height, width] = read_image(image_path)
@@ -31,6 +36,7 @@ function [image, height, width] = read_image(image_path)
     image(end,:) = image(end-1,:);
     image(:,end) = image(:,end-1);
     [height, width] = size(image);
+%     image = image(2:width-1, 2:height-1);
 end
 
 %% Returns the Preprocessed Image
@@ -78,8 +84,8 @@ function [cell_mass, roi, num_roi] = triangle_threshold(mean_superpixels, label_
     % binarize image, convert to double image
     binary_image = double(~imbinarize(mean_superpixels, triangle_theshold_value));
     
-    % remove all components with area < 175 pixels
-    binary_image = bwareaopen(binary_image, 175); 
+    % remove all components with area < 250 pixels
+    binary_image = bwareaopen(binary_image, 250); 
     
     % keep the labels are are part of the binary cell image
     cell_mass = label_matrix .* binary_image;
@@ -309,7 +315,7 @@ function [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, r
 end
 
 %% Function For Nearest Nucleus
-function [] = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi, idx, image)
+function [nearest_cytoplasm, cc] = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi)
     
     % conneced componens and region properties 
     nuclei_logical = logical(nuclei);
@@ -331,25 +337,10 @@ function [] = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei
             nearest_cytoplasm(nn) = superpixel;
         end
     end
-    
-    % for each nucleus
-    for i = 1 : cc.NumObjects
-        % determine superpixel_partitioning
-        initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, nearest_cytoplasm(i));
-        % determine boundary of partitioning
-        cell_boundary = edge(initial_cell_cytoplasm);
-        % assign color to edge
-        edge_color = edge_LUT(i);
-        if i == 1
-            segmentation_overlay = imoverlay(image, cell_boundary, edge_color);
-        else
-            segmentation_overlay = imoverlay(segmentation_overlay, cell_boundary, edge_color);
-        end
-    end
-    
-    figure, imshow(segmentation_overlay)
 end
 
+
+%% Function Returns the Nearest Nucleus (bad data structure right now...)
 function [nn] = nearest_nucleus(superpixel_area_LUT, superpixel, nuclei)
     % find the centroid of the given superpixel
     current_superpixel = superpixel_area_LUT(superpixel);
@@ -371,6 +362,75 @@ function [nn] = nearest_nucleus(superpixel_area_LUT, superpixel, nuclei)
     % return the index of the nearest nucleus
     sorted_distance_list = sort(distance_list);
     nn = find(distance_list == sorted_distance_list(1));
+end
+
+%% Function Returns the Initial Boundary Image
+function [overlayed_boundary] = draw_boundary_initial(superpixel_area_LUT, initial_segmentation, image)
+    % for each nucleus
+    for i = 1 : initial_segmentation.Count
+        % determine superpixel_partitioning
+        initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, initial_segmentation(i));
+        % determine boundary of partitioning
+        cell_boundary = edge(initial_cell_cytoplasm);
+        % assign color to edge
+        edge_color = edge_LUT(i);
+        if i == 1
+            overlayed_boundary = imoverlay(image, cell_boundary, edge_color);
+        else
+            overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary, edge_color);
+        end
+    end
+end
+
+%% Function Returns the Boundary Image
+function [overlayed_boundary] = draw_boundary_refinement(initial_segmentation, image)
+    % for each nucleus
+    for i = 1 : initial_segmentation.Count
+        % determine superpixel_partitioning
+        initial_cell_cytoplasm = initial_segmentation(i);
+        % determine boundary of partitioning
+        cell_boundary = edge(initial_cell_cytoplasm);
+        % assign color to edge
+        edge_color = edge_LUT(i);
+        if i == 1
+            overlayed_boundary = imoverlay(image, cell_boundary, edge_color);
+        else
+            overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary, edge_color);
+        end
+    end
+end
+
+
+%% Function Performs Cellwise Contour Refinement
+function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, cell_mass, image, L, mean_image)
+
+    % dictionary [key = nucleus label] [value = list of nearest superpixels]
+    contour_refined_cytoplasm = containers.Map('KeyType','double', 'ValueType', 'any');
+    
+    for i = 1 : initial_segmentation.Count
+        % determine superpixel_partitioning
+        initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, initial_segmentation(i));
+        
+        % adaptively set the morpological area to be 50% of max size
+        area = regionprops(initial_cell_cytoplasm, 'Area');
+        area = area(255).Area;
+        
+        % morpological structuring elements
+        SE_dilate = strel('square', 50);
+        SE_erode = strel('square', 20);
+        
+        % specify what is forsure foreground and forsure background based
+        % off morpological operations
+        foremask = imerode(initial_cell_cytoplasm, SE_erode);
+        backmask = ~imdilate(initial_cell_cytoplasm, SE_dilate);
+        
+%         figure, imshow(initial_cell_cytoplasm)
+%         figure, imshow(foremask)
+%         figure, imshow(backmask)
+        
+        BW = grabcut(mean_image, L, logical(initial_cell_cytoplasm), logical(foremask), logical(backmask));
+        contour_refined_cytoplasm(i) = BW;
+     end
 end
 
 
