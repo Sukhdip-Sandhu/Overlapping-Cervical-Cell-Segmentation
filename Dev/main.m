@@ -3,7 +3,7 @@ tic; clear; close all; clc;
 addpath('EvalCode', 'HelperFunctions', 'Dataset/Training/Train45Test90/IndividualImages/')
 
 %% MAIN
-image_path = '40.tif';
+image_path = '5.tif';
 [image, h, w] = read_image(image_path);
 
 %% CELL MASS DETECTION
