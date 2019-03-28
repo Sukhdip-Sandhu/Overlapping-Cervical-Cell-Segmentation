@@ -1,6 +1,6 @@
 %{
     Main Script
-    Dev Branch
+	
 %}
 %% Housekeeping and Setup
 tic
@@ -11,7 +11,7 @@ addpath('EvalCode', 'HelperFunctions', 'Scripts', 'Dataset/Training/Train45Test9
 
 
 %% Hardcoded Variables
-training_image_path = '2.tif';
+training_image_path = '9.tif';
 
 %% Image Preprocessing
 image = imread(training_image_path);
