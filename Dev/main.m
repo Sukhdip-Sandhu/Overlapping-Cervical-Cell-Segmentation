@@ -1,11 +1,18 @@
 %% Housekeeping and Initialization
 tic; clear; close all; clc;
-addpath('EvalCode', 'HelperFunctions', 'Dataset/Training/Train45Test90/IndividualImages/')
+addpath('EvaluationCode', 'HelperFunctions', genpath('Dataset'))
 
 %% MAIN
+<<<<<<< HEAD
+% good demo 9 13
+% okay 11
+% poor 4 5 6 7 
+image_path = '4.tif';
+=======
 image_path = '9.tif';
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
 [image, h, w] = read_image(image_path);
-
+figure, imshow(image);
 %% CELL MASS DETECTION
 preprocessed_image = preprocess_image(image);
 [mean_superpixels, label_matrix, idx] = oversegment_image(preprocessed_image, h);
@@ -19,6 +26,17 @@ superpixel_area_LUT = label_to_area_dictionary(cell_mass, roi, num_roi);
 [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, reject_tiny_candidates, new_nuclei_candidates, idx);
 
 %% CYTOPLASM SEGMENTATION
+<<<<<<< HEAD
+initial_segmentation = superpixel_partitioning(superpixel_area_LUT, nuclei, roi, num_roi);
+cellwise_contour_segmentation = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, image, label_matrix);
+
+initial_boundaries = draw_boundary_initial(superpixel_area_LUT, initial_segmentation, image);
+cellwise_contour_boundaries = draw_boundary_refinement(cellwise_contour_segmentation, image);
+
+figure, imshow(initial_boundaries);
+figure, imshow(cellwise_contour_boundaries);
+toc
+=======
 initial_segmentation = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi);
 initial_boundaries = draw_boundary_initial(superpixel_area_LUT, initial_segmentation, image);
 figure, imshow(initial_boundaries);
@@ -26,6 +44,7 @@ cellwise_contour_segmentation = cellwise_contour_refinement(superpixel_area_LUT,
 cellwise_contour_boundaries = draw_boundary_refinement(cellwise_contour_segmentation, image);
 figure, imshow(cellwise_contour_boundaries);
 
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
 %% Functions
 %% Return Image from Path
 function [image, height, width] = read_image(image_path)
@@ -51,9 +70,6 @@ function [mean_superpixels, label_matrix, idx] = oversegment_image(image, height
     % label_matrix = labels of each superpixel region
     [label_matrix, num_labels] = superpixels(image, height*2);
     
-    % linear indices
-    idx = label2idx(label_matrix);
-
     % superpixel regions
     region_boundaries = boundarymask(label_matrix);
 
@@ -285,9 +301,6 @@ function [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, r
     area = regionprops(cc, 'area');
     perimeter = regionprops(cc, 'perimeter');
     
-    % list of indices to remove
-    indices_to_remove = [];
-    
     % for each candidate nuclie
     for i = 1 : numel(area)
         % calculate its circularity
@@ -315,7 +328,11 @@ function [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, r
 end
 
 %% Function For Nearest Nucleus
+<<<<<<< HEAD
+function [nearest_cytoplasm, cc] = superpixel_partitioning(superpixel_area_LUT, nuclei, roi, num_roi)
+=======
 function [nearest_cytoplasm, cc] = superpixel_partitioning(superpixel_area_LUT, nuclei_labels, nuclei, roi, num_roi)
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
     
     % conneced componens and region properties 
     nuclei_logical = logical(nuclei);
@@ -402,7 +419,11 @@ end
 
 
 %% Function Performs Cellwise Contour Refinement
+<<<<<<< HEAD
+function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, image, L)
+=======
 function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, cell_mass, image, L, mean_image)
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
 
     % dictionary [key = nucleus label] [value = list of nearest superpixels]
     contour_refined_cytoplasm = containers.Map('KeyType','double', 'ValueType', 'any');
@@ -411,6 +432,11 @@ function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_ar
         % determine superpixel_partitioning
         initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, initial_segmentation(i));
         
+<<<<<<< HEAD
+        % morpological structuring elements
+        SE_dilate = strel('square', 25);
+        SE_erode = strel('square', 25);
+=======
         % adaptively set the morpological area to be 50% of max size
         area = regionprops(initial_cell_cytoplasm, 'Area');
         area = area(255).Area;
@@ -418,12 +444,20 @@ function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_ar
         % morpological structuring elements
         SE_dilate = strel('square', 50);
         SE_erode = strel('square', 20);
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
         
         % specify what is forsure foreground and forsure background based
         % off morpological operations
         foremask = imerode(initial_cell_cytoplasm, SE_erode);
         backmask = ~imdilate(initial_cell_cytoplasm, SE_dilate);
         
+<<<<<<< HEAD
+        % grab cut segmentation :) 
+        BW = grabcut(image, L, logical(~backmask), logical(foremask), logical(backmask));
+        contour_refined_cytoplasm(i) = BW;
+     end
+end
+=======
 %         figure, imshow(initial_cell_cytoplasm)
 %         figure, imshow(foremask)
 %         figure, imshow(backmask)
@@ -433,9 +467,10 @@ function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_ar
      end
 end
 
+>>>>>>> c3d81a43c7857de0c828258b3d5969b9fb0610c9
 
-%% HELPERS
 
+%% HELPER FUNCTIONS
 %% Output an image based off labels
 function [image] = image_from_labels(superpixel_area_LUT, labels)
     image = zeros(size(superpixel_area_LUT(labels(1))));
@@ -503,20 +538,7 @@ end
 function [color] = edge_LUT(i)
     num_colors = 3;
     r = mod(i,num_colors);
-
-    if r == 0
-        color = 'r';
-        return
-    end
-
-    if r == 1
-        color = 'g';
-        return
-    end
-
-    if r == 2
-        color = 'b';
-        return
-    end
-
+    if r == 0, color = 'r'; return, end
+    if r == 1, color = 'g'; return, end
+    if r == 2, color = 'b'; return, end
 end
