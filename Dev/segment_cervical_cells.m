@@ -1,20 +1,25 @@
 %% Housekeeping and Initialization
-tic; clear; close all; clc;
-addpath('EvaluationCode', 'HelperFunctions', genpath('Dataset'), 'Results')
-
-%% MAIN
-tic
-path_to_mat_file = 'testset.mat';
-images = load(path_to_mat_file);
-images = images.testset;
-num_images = numel(images);
-master_cell = cell([num_images,1]);
-
+tic; clear; close all hidden; clc;
+addpath('EvaluationCode', 'HelperFunctions', genpath('Dataset'), 'Results', 'SampleImages')
 waitbar_handle = waitbar(0, 'Segmenting Cytoplasms... Please Wait :)');
+%% MAIN
+% path to .mat containing images
+path_to_mat_file = 'trainset.mat';
+
+% getting images
+images = load(path_to_mat_file);
+images = images.trainset;
+
+% number of images
+num_images = numel(images);
+
+% initialize cell to contain image data
+master_cell = cell([num_images,1]);
 
 for image_iter = 1 : num_images
     %% GET CURRENT IMAGE
-    [curr_image, h, w] = read_image(images{image_iter});
+    im = images{image_iter};
+    [curr_image, h, w] = read_image(im);
     
     %% CELL MASS DETECTION
     [preprocessed_image] = preprocess_image(curr_image);
@@ -27,24 +32,33 @@ for image_iter = 1 : num_images
     [broken_cluster_candidates, nuclei_candidates] = breaking_superpixel_clusters(superpixel_area_LUT, candidate_labels, nuclei_candidates, mean_superpixels, idx);
     [reject_tiny_candidates, new_nuclei_candidates] = reject_tiny_superpixels(superpixel_area_LUT, broken_cluster_candidates);
     [nuclei_labels, nuclei] = reject_low_circularity(superpixel_area_LUT, reject_tiny_candidates, new_nuclei_candidates, idx);
-
     %% CYTOPLASM SEGMENTATION
     [initial_segmentation] = superpixel_partitioning(superpixel_area_LUT, nuclei, roi, num_roi);
     [cellwise_contour_segmentation] = cellwise_contour_refinement(superpixel_area_LUT, initial_segmentation, curr_image, label_matrix);
-
     [initial_boundaries] = draw_boundary_initial(superpixel_area_LUT, initial_segmentation, curr_image);
+%     imwrite(initial_boundaries, '6.superpixel_partitioning.png')
     [cellwise_contour_boundaries] = draw_boundary_refinement(cellwise_contour_segmentation, curr_image);
-
-    %% SAVE
+%     imwrite(cellwise_contour_boundaries, '7.cellwise_contour_boundaries.png')
+%     % SAVE IMAGES TO FILE (OPTIONAL)
+%     save_path = strcat('.\SampleImages\FOLDER_NAME', '\');
+%     imwrite(curr_image, strcat(save_path, '1.starting_image.png'))
+%     imwrite(imoverlay(curr_image, region_boundaries, 'K'), strcat(save_path, '2.superpixel_overlay.png'))
+%     imwrite(mean_superpixels, strcat(save_path, '3.mean_superpixels.png'))
+%     imwrite(cell_mass, strcat(save_path, '4.cell_mass.png'))
+%     imwrite(nuclei, strcat(save_path, '5.nuclei.png'))
+%     imwrite(initial_boundaries, strcat(save_path, '6.superpixel_partitioning.png'))
+%     imwrite(cellwise_contour_boundaries, strcat(save_path, '7.cellwise_contour.png'))
+    
+    %% SAVE DATA OF SEGMENTATIONS
     [master_cell] = save_to_mat(cellwise_contour_segmentation, master_cell, image_iter);
     waitbar(image_iter/num_images);
 end
-% safely close the waitbar
-close(waitbar_handle);
 
 % save segmentation results
-save(strcat('.\Results\Segmentations_', path_to_mat_file(1:end-4)), 'master_cell');
+save(strcat('.\Results\Segmentations_FINAL', path_to_mat_file(1:end-4)), 'master_cell');
 
+% safely close the waitbar
+close(waitbar_handle);
 toc
 
 
@@ -62,7 +76,7 @@ end
 %% Returns the Preprocessed Image
 function [preprocessed_image] = preprocess_image(image)
     % apply 2D median filter across image
-    preprocessed_image = medfilt2(image);
+    preprocessed_image = medfilt2(image, [5,5]);
 end
 
 %% Superpixel Function
@@ -96,7 +110,7 @@ function [cell_mass, roi, num_roi] = triangle_threshold(mean_superpixels, label_
     img_hist = imhist(mean_superpixels);
     
     % calculate triangle value (Zack GW, Rogers WE, Latt SA (1977))
-    triangle_theshold_value = triangle_th(img_hist, 256);
+    triangle_theshold_value = triangle_thresh(img_hist, 256);
     
     % binarize image, convert to double image
     binary_image = double(~imbinarize(mean_superpixels, triangle_theshold_value));
@@ -112,6 +126,51 @@ function [cell_mass, roi, num_roi] = triangle_threshold(mean_superpixels, label_
     % number of unique labels
     num_roi = size(roi,1); 
 end
+
+%% Triangle Threshold Function
+function [thresh]=triangle_thresh(hist, num_bins)
+%        Method: 1) A straight line is drawn from the maximum to the end of the histogram, to form a triangular-like shape 
+%                2) The threshold is selected at the point of the histogram that maximizes the perpendicular distance from 
+%                   the histogram to the straight line
+%
+%        Inputs:    histogram -   histogram of the gray level image
+%                    num_bins -   number of bins (e.g. gray levels is 256)
+%       Outputs:       thresh -   threshold value in the range [0 1];
+%         
+%    Contraints: This method gives suitable results in many cases, but tends to be sensitive to parameters such as the 
+%                statistical fluctuations of the histogram, and the position of the endpoint (highest gray level).
+%
+%    References: Zack (Zack GW, Rogers WE, Latt SA (1977), "Automatic measurement of sister chromatid exchange frequency",
+%                J. Histochem. Cytochem. 25 (7): 741,53, )
+
+%   Find maximum of histogram and its location along the x axis
+[maxval, maxloc] = max(hist);
+   
+%   Find location of the left end of the histogram.
+nonzerolocs = find(hist>0);
+minloc = nonzerolocs(1);
+  
+% Calculate slope of hypotenuse of triangle - rise/run  
+slope = maxval/(maxloc-minloc); 
+    
+% Use triangle geometry to calculate all possible distances d perpendicular from the hypotenuse to the histogram
+hist = hist';
+x1 = 0:(maxloc - minloc); % start x1 from 0 with the length of maxloc - minloc
+y1 = hist(x1 + minloc);
+beta = y1 + x1/slope;
+x2 = beta / (slope + (1/slope));
+y2 = slope * x2;
+
+d = ((y2 - y1).^2 + (x2-x1).^2).^0.5; % Pythagoras Theorem: c = sqrt(a^2 + b^2)
+
+%  Threshold is the location that maximizes distance d     
+thresh = find(max(d)==d);
+    
+%   output of the program
+thresh = minloc + mean(thresh);
+thresh = thresh / num_bins;
+    
+end    
 
 %% Look Up Table
 function [dict] = label_to_area_dictionary(cell_mass, roi, num_roi)
@@ -386,12 +445,15 @@ function [overlayed_boundary] = draw_boundary_initial(superpixel_area_LUT, initi
         initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, initial_segmentation(i));
         % determine boundary of partitioning
         cell_boundary = edge(initial_cell_cytoplasm);
+%         SE_dilate = strel('square', 2);
+%         cell_boundary2 = imdilate(cell_boundary, SE_dilate);
         % assign color to edge
         edge_color = edge_LUT(i);
         if i == 1
             overlayed_boundary = imoverlay(image, cell_boundary, edge_color);
         else
             overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary, edge_color);
+%             overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary2, edge_color);
         end
     end
 end
@@ -404,12 +466,15 @@ function [overlayed_boundary] = draw_boundary_refinement(initial_segmentation, i
         initial_cell_cytoplasm = initial_segmentation(i);
         % determine boundary of partitioning
         cell_boundary = edge(initial_cell_cytoplasm);
+%         SE_dilate = strel('square', 2);
+%         cell_boundary2 = imdilate(cell_boundary, SE_dilate);
         % assign color to edge
         edge_color = edge_LUT(i);
         if i == 1
             overlayed_boundary = imoverlay(image, cell_boundary, edge_color);
         else
             overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary, edge_color);
+%             overlayed_boundary = imoverlay(overlayed_boundary, cell_boundary2, edge_color);
         end
     end
 end
@@ -424,7 +489,7 @@ function [contour_refined_cytoplasm] = cellwise_contour_refinement(superpixel_ar
     for i = 1 : initial_segmentation.Count
         % determine superpixel_partitioning
         initial_cell_cytoplasm = image_from_labels(superpixel_area_LUT, initial_segmentation(i));
-        
+
         % morpological structuring elements
         SE_dilate = strel('square', 25);
         SE_erode = strel('square', 25);
