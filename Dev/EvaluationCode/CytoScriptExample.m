@@ -28,9 +28,9 @@ save(path_to_save_results, ...
     'stdFNo_70');
 
 function [CytoGroundTruth, SegmentationResult, path_to_save_results] = eval_45training()
-    path_to_our_segmentation = 'Segmentations_trainset.mat';
+    path_to_our_segmentation = 'Segmentations_FINALtrainset.mat';
     path_to_ground_truth = 'trainset_GT.mat';
-    path_to_save_results = strcat('.\Results\Segmentations_', path_to_our_segmentation(15:end-4), '_results');
+    path_to_save_results = strcat('.\Results\Segmentations_H4', path_to_our_segmentation(15:end-4), '_results');
 
     load(path_to_our_segmentation)
     load(path_to_ground_truth, 'train_Cytoplasm')
