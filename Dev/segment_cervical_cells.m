@@ -2,7 +2,7 @@
 %% Housekeeping and Initialization
 % =========================================================================
 tic; clear; close all hidden; clc;
-addpath(genpath('.')); % add entire directory to path
+addpath(genpath('.')); % add entire directory to path for ease...
 waitbar_handle = waitbar(0, 'Segmenting Cytoplasms... Please Wait :)');
 
 % =========================================================================
@@ -45,7 +45,7 @@ for image_iter = 1 : num_images
     [cellwise_contour_boundaries] = draw_boundary_refinement(cellwise_contour_segmentation, curr_image);
     
 % =========================================================================    
-%% SAVE IMAGES TO FILE (OPTIONAL) (RESULTS ATTACHED SO NO NEED TO RUN)
+%% SAVE IMAGES TO FILE 
 % =========================================================================
 %     save_path = strcat('.\SampleImages_Update\', string(image_iter), '\');
 %     imwrite(curr_image, strcat(save_path, '1.starting_image.png'))
