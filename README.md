@@ -1,13 +1,16 @@
-<img src="https://cancam2017.me.uvic.ca/image/UVicLogo.jpg" width="100">
 
 ### Overlapping Cervical Cell Segmentation
 
-#### Medical Image Processing (ECE 435) Project
+#### Medical Image Processing Project
 ___
 
-##### Our paper aims to follow Dr. Lee and Dr. Kim’s [1] implementation on segmentation of cervical cells in microscopic images, and evaluate our algorithm on the dataset provided by the ISBI 2014 Challenge [2,3]. 
+##### The paper aims to follow Dr. Lee and Dr. Kim’s [1] implementation on segmentation of cervical cells in microscopic images, and evaluate our algorithm on the dataset provided by the ISBI 2014 Challenge [2,3]. 
 
 ##### Please see attached Report for full details
+###### Sample Results of Algorithm (*all results available in repo*)
+Original Image             |  Cell Wall Detection             |  Nucleus Detection | Overlapping Cell Segmentation |
+:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
+![](./Dev/Results_Images/27/1.starting_image.png) | ![](./Dev/Results_Images/27/4.cell_mass.png) | ![](./Dev/Results_Images/27/5.nuclei.png) | ![](./Dev/Results_Images/27/7.cellwise_contour.png)
 ___
 
 
